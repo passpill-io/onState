@@ -1,3 +1,9 @@
+(function(root){
+
+/*
+  START onState implementation
+*/
+
 const dontPropagate = new Set(['_reState', 'state']);
 
 function isOs( data ){
@@ -6,11 +12,7 @@ function isOs( data ){
 
 function onState( data ){
 
-  // if already is a oS we don't need to
-  // transform it
-  if( isOs(data) ) {
-    return data;
-  }
+  
 
   var listeners = {},
   	parents = [],
@@ -56,7 +58,7 @@ function onState( data ){
 
   function createNode( data ){
     var base = data.splice ? [] : {},
-      timer = false
+      timer = true
     ;
 
     var enqueueState = function( node ){
@@ -100,15 +102,12 @@ function onState( data ){
         enqueueState(oS);
         return true;
       },
-      get: function( obj, prop ){
-        if(prop === 'toString'){
-          return obj.toString.bind(obj);
+      get: function (obj, prop) {
+        if (m[prop]) {
+          return m[prop];
         }
         if(obj[prop] || obj.hasOwnProperty(prop)){
           return obj[prop];
-        }
-        if( m[prop] ){
-          return m[prop];
         }
 
         return Reflect.get( obj, prop );
@@ -119,6 +118,8 @@ function onState( data ){
     for( key in data ){
       oS[key] = data[key];
     }
+
+    timer = false;
 
     oS.on('_reState', (prevState, nextState) => {
        for(var key in oS){
@@ -139,4 +140,21 @@ function onState( data ){
   return createNode( data );
 }
 
-module.exports = onState;
+
+/*
+  END onState implementation
+*/
+
+// Make it work everywhere
+if (typeof define === 'function' && define.amd) {
+  // AMD. Register as an anonymous module.
+  define(['exports', 'onState'], onState);
+} else if (typeof exports === 'object' && typeof exports.nodeName !== 'string') {
+  // CommonJS
+  module.exports = onState;
+} else {
+  // Browser globals
+  root.onState = onState;
+}
+
+})(this);

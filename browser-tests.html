@@ -1,0 +1,25 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Mocha Tests</title>
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/mocha/5.0.1/mocha.css" rel="stylesheet" />
+</head>
+
+<body>
+	<div id="mocha"></div>
+
+	<script src="tests/assert.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/mocha/5.0.1/mocha.js"></script>
+	<script src="src/onState2.js"></script>
+
+	<script>mocha.setup('bdd')</script>
+	<script src="tests/onState-spec.js"></script>
+	<script>
+		mocha.checkLeaks();
+		mocha.globals(['onState']);
+		mocha.run();
+	</script>
+</body>
+
+</html>
