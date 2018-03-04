@@ -156,29 +156,46 @@ describe( "onState tests", function(){
 
 	it('Preserve unchanged nodes', function(done){
 		var data = {
-			l1a: [{l3a:[1,2,3], l3b:[3,2,1], l3c:{a:{}, b:{}}}, {}],
+			l1a: [
+				{l3a:[1,2,3], l3b:[3,2,1], l3c:{a:{}, b:{}}},
+				{}
+			],
 			l1b: {l2a:[{},{},{}], l2b:[{},{},{}], l2c:[{},{},{}]},
 			l1c: []
 		};
-		
+
+		// Let get a copy of every node related to the path changed
 		var os = onState(data);
-		var copy = Object.assign({},os);
-		var copy1 = os.l1a.slice();
-		var copy2 = Object.assign({}, os.l1a[0]);
-		var copy3 = Object.assign({}, os.l1a[0].l3c);
+		var osl1a = os.l1a;
+		var osl1b = os.l1b;
+		var osl1c = os.l1c;
+		var osl1a0 = os.l1a[0];
+		var osl1a1 = os.l1a[1];
+		var osl1a0l3a = os.l1a[0].l3a;
+		var osl1a0l3b = os.l1a[0].l3b;
+		var osl1a0l3c = os.l1a[0].l3c;
+		var osl1a0l3ca = os.l1a[0].l3c.a;
+		var osl1a0l3cb = os.l1a[0].l3c.b;
+		
 
 		os.on('state', st => {
-			assert.notEqual(st, copy);
+			// Nodes in the path changed needs to be different
+			// but siblings needs to be the same objects
+			assert.notEqual(st, os);
 
-			assert.equal(copy1[1], st.l1a[1]);
-			assert.notEqual(copy1[0], st.l1a[0]);
+			assert.notEqual(st.l1a, osl1a);
+			assert.equal(st.l1b, osl1b);
+			assert.equal(st.l1c, osl1c);
+
+			assert.notEqual(st.l1a[0], osl1a0);
+			assert.equal(st.l1a[1], osl1a1);
 			
-			assert.equal(copy2.l3a, st.l1a[0].l3a);
-			assert.equal(copy2.l3b, st.l1a[0].l3b);
-			assert.notEqual(copy2.l3c, st.l1a[0].l3c);
+			assert.equal(osl1a0l3a, st.l1a[0].l3a);
+			assert.equal(osl1a0l3b, st.l1a[0].l3b);
+			assert.notEqual(osl1a0l3c, st.l1a[0].l3c);
 
-			assert.equal(copy3.a, st.l1a[0].l3c.a);
-			assert.notEqual(copy3.b, st.l1a[0].l3c.b);
+			assert.equal(osl1a0l3ca, st.l1a[0].l3c.a);
+			assert.notEqual(osl1a0l3cb, st.l1a[0].l3c.b);
 
 			done();
 		});
