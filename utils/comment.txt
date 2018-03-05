@@ -1,0 +1,6 @@
+/* %%name%% v%%version%% (%%date%%)
+ * %%homepage%%
+ * By %%author%%
+ * License: %%license%%
+ */
+ %%contents%%

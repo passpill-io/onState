@@ -1,0 +1,13 @@
+node_modules/
+coverage/
+lib-cov/
+coverage.json
+npm-debug.log
+
+.coveralls.yml
+.nyc_output
+
+# IDEs
+.idea
+.vscode
+.vscode/

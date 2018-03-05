@@ -1,4 +1,19 @@
-const dontPropagate = new Set(['_reState', 'state']);
+/* onstate v0.2.0 (2018-3-5)
+ * https://github.com/passpill-io/onState
+ * By Javier Marquez - javi@arqex.com
+ * License: MIT
+ */
+ (function (root, factory) {
+	if (typeof define === 'function' && define.amd) {
+		define(['exports', 'onState'], factory);
+	} else if (typeof exports === 'object') {
+		module.exports = factory();
+	} else {
+		root.onState = factory();
+	}
+}(this, function () {
+	'use strict';
+	const dontPropagate = new Set(['_reState', 'state']);
 
 function isOs( data ){
   return data && typeof data._delParent === 'function';
@@ -157,5 +172,6 @@ function onState( data ){
   return createNode( data );
 }
 
-/* EXPORT - Do not remove or modify this comment */
-module.exports = onState;
+
+	return onState;
+}));
