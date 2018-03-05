@@ -1,19 +1,4 @@
-/* onstate v0.2.0 (2018-3-5)
- * https://github.com/passpill-io/onState
- * By Javier Marquez - javi@arqex.com
- * License: MIT
- */
- (function (root, factory) {
-	if (typeof define === 'function' && define.amd) {
-		define(['exports', 'onState'], factory);
-	} else if (typeof exports === 'object') {
-		module.exports = factory();
-	} else {
-		root.onState = factory();
-	}
-}(this, function () {
-	'use strict';
-	const dontPropagate = new Set(['_reState', 'state']);
+const dontPropagate = new Set(['_reState', 'state']);
 
 function isOs( data ){
   return data && data.__;
@@ -180,6 +165,5 @@ function onState( data ){
   return createNode( data );
 }
 
-
-	return onState;
-}));
+/* EXPORT - Do not remove or modify this comment */
+module.exports = onState;

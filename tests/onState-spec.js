@@ -1,7 +1,7 @@
 // Conditional definition to work also in the browser
 // tests where onState is global
 if( typeof onState == 'undefined' ){
-	var onState = require('../src/onState2');
+	var onState = require('../src/onState3');
 	var assert = require('assert');
 }
 
@@ -20,7 +20,6 @@ describe( "onState tests", function(){
 	});
 
 	it( 'Create an onState object', function(){
-		console.log('dentro');
 		assert.equal( data.a, os.a );
 		assert.equal( data.b.z, os.b.z );
 		assert.equal( data.b.x[0], os.b.x[0] );
@@ -30,43 +29,30 @@ describe( "onState tests", function(){
 	});
 
 	it( 'All methods in place', function(){
-		console.log('dentro');
 		assert.equal( typeof os.emit, "function" );
 		assert.equal( typeof os.on, "function" );
-		assert.equal( typeof os._addParent, "function" );
-		assert.equal( typeof os._delParent, "function" );
 	});
 
 	it( "Intermediate nodes also have methods", function(){
-		console.log('dentro');
 		assert.equal( typeof os.b.x.emit, "function" );
 		assert.equal( typeof os.b.x.on, "function" );
-		assert.equal( typeof os.b.x._addParent, "function" );
-		assert.equal( typeof os.b.x._delParent, "function" );
 	});
 
 	it( "New nodes also have methods", function(){
-		console.log('dentro');
 		os.newOne = {};
 
 		assert.equal( typeof os.newOne.emit, "function" );
 		assert.equal( typeof os.newOne.on, "function" );
-		assert.equal( typeof os.newOne._addParent, "function" );
-		assert.equal( typeof os.newOne._delParent, "function" );
 	});
 
 	it( "Original methods are overridden", function(){
 		os.newOne = {
 			emit: 2,
-			on: 2,
-			_addParent: 2,
-			_delParent: 2
+			on: 2
 		};
 
 		assert.equal(typeof os.newOne.emit, "function");
 		assert.equal(typeof os.newOne.on, "function");
-		assert.equal(typeof os.newOne._addParent, "function");
-		assert.equal(typeof os.newOne._delParent, "function");
 	});
 
 	it("State is mutable", function(){
@@ -203,7 +189,45 @@ describe( "onState tests", function(){
 		os.l1a[0].l3c.b = {};
 	});
 
-	
+	it('Adding working nodes to os objects should preserve __', function(done){
+		var os2 = onState({foo: 'bar'}),
+			once = false,
+			twice = false
+		;
+
+		os.os2 = os2;
+
+		os2.on('state', function(){
+			once = 'true';
+		});
+		os.on('state', function(){
+			twice = 'true';
+		});
+
+		os2.second = 'true';
+
+		setTimeout( () => {
+			assert.equal(once, 'true');
+			assert.equal(twice, 'true');
+			done();
+		}, 10);
+	});
+
+	it("Add a oS node to the object throws an error", function(done){
+		var thrown = false;
+		try {
+			os.e = os.b;
+		}
+		catch( err ){
+			thrown = true;
+		}
+
+		setTimeout( function(){
+			assert.notEqual(os.e, os.b);
+			assert.equal(thrown, true);
+			done();
+		},10);
+	});
 });
 
 

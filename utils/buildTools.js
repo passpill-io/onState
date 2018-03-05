@@ -22,7 +22,7 @@ module.exports = {
 		rimraf(BUILD_PATH, () => {
 			fs.mkdirSync(BUILD_PATH);
 
-			var content = this.read( '../src/onState2.js' );
+			var content = this.read( '../src/onState3.js' );
 
 			// Remove the export, wrap it in umd
 			var umd = this.toUmd(moduleName, content.split('/* EXPORT')[0]),

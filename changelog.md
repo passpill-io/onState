@@ -3,6 +3,8 @@ v0.2.0
 * Creates build system
 * Adds travis CI
 * Adds coveralls
+* Third strategy
+* Forbid adding previous nodes
 
 v0.1.0
 * Memory leaks handled
