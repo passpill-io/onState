@@ -82,6 +82,16 @@ describe( "onState tests", function(){
 		delete os.b;
 	});
 
+	it("State events are emitted on delete leave", function(done){
+		os.on('state', st => {
+			assert.notEqual(st, os);
+			assert.equal(st.b.z, undefined);
+			assert.equal(Object.keys(st.b).length, 2);
+			done();
+		});
+
+		delete os.b.z;
+	});
 
 	it("State changes are batched", function(done){
 		var once = false;
@@ -229,6 +239,24 @@ describe( "onState tests", function(){
 		},10);
 	});
 
+	it("Splice delete exception should be removed after tick", function( done ){
+		os.on('state', function(){
+			var thrown;
+			try {
+				os.c.push(os.c[1]);
+			}
+			catch( err ){
+				thrown = true;
+			}
+
+			assert.equal( os.c.length, 2 );
+			assert.equal( thrown, true );
+			done();
+		});
+		os.c.splice(0,1);
+
+	});
+
 	it("Add more than one listener to a node", function(done){
 		var one, two;
 		os.on('state', function () { one = 1 });
@@ -271,6 +299,53 @@ describe( "onState tests", function(){
 		os.b.x.emit('custom', 'arg1', 'arg2', 'arg3');
 		
 		assert.equal( order, 'ABC' );
+	});
+
+	it("Can't add falsy events", function(){
+		os.on(false, function(){
+			console.log('My callback');
+		});
+
+		assert.equal( os.__.clbks[false], undefined );
+
+		os.on('hello');
+
+		assert.equal(os.__.clbks["hello"], undefined);
+	});
+
+	it("Remove listeners", function(){
+		var called = '',
+			listener = function(){
+				called += '1';
+			}
+		;
+
+		os.on('call', listener);
+		os.emit('call');
+		os.off('call', listener );
+		os.emit('call');
+
+		assert.equal(called, '1');
+	});
+
+	it("Removing an unexistant listener doesn't affect others", function(){
+
+		var called = '',
+			listener = function () {
+				called += '1';
+			},
+			listener2 = function() {
+				called += '2';
+			}
+		;
+		
+		os.off('call', listener2);
+		os.on('call', listener);
+		os.emit('call');
+		os.off('call', listener2);
+		os.emit('call');
+
+		assert.equal(called, '11');
 	});
 });
 

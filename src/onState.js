@@ -14,11 +14,33 @@ function warn(msg) {
 
 var methods = {
   on: function (event, clbk) {
-    if (!this.__.listeners[event]) {
-      this.__.listeners[event] = [clbk];
+    if( !event ){
+      return warn("Can't add listener for a falsy event.");
+    }
+    else if(typeof clbk !== 'function') {
+      return warn("No listener provided for the event '" + event + "'.")
+    }
+
+    if (!this.__.clbks[event]) {
+      this.__.clbks[event] = [clbk];
     }
     else {
-      this.__.listeners[event].push(clbk);
+      this.__.clbks[event].push(clbk);
+    }
+  },
+  off: function( event, clbk ){
+    var clbks = this.__.clbks[event],
+      msg = "Couldn't find the listener to remove from the event '" + event + "'."
+    ;
+
+    if( !clbks ) return warn(msg);
+    
+    var idx = clbks.indexOf( clbk );
+    if( idx !== -1 ){
+      clbks.splice(idx, 1);
+    }
+    else {
+      warn(msg);
     }
   },
   emit: function (event) {
@@ -37,10 +59,10 @@ var methods = {
 }
 
 function trigger(__, event) {
-  if (!__.listeners[event]) return;
+  if (!__.clbks[event]) return;
 
   var rest = Array.from(arguments).slice(2);
-  __.listeners[event].forEach(clbk => {
+  __.clbks[event].forEach(clbk => {
     clbk.apply(null, rest);
   });
 }
@@ -65,7 +87,7 @@ function onReState(node, prevChild, nextChild) {
 
   var next = createNode(node),
     __ = node.__
-    ;
+  ;
 
   node.emit('state', next);
 
@@ -81,7 +103,7 @@ function onReState(node, prevChild, nextChild) {
 
 var proxyHandlers = {
   set: function (obj, prop, value) {
-    if (!this.__.init && value && value.__ && value.__.parent) {
+    if (!this.__.init && value && value.__ && value.__.parent && !this.__.splicing ) {
       err("Can't add an oS node to another oS object.");
     }
 
@@ -120,6 +142,14 @@ var proxyHandlers = {
     return true;
   },
   get: function (obj, prop) {
+
+    if (obj.splice && prop === 'splice') {
+      // Intermediate steps of splice needs to add the same
+      // node twice to the array, mark it as splicing
+      this.__.splicing = true;
+      setTimeout(() => delete this.__.splicing);
+    }
+    
     if (prop === '__') {
       return this.__;
     }
@@ -137,7 +167,7 @@ var proxyHandlers = {
 
 function createNode(data) {
   var base = data.splice ? [] : {},
-    __ = { parent: false, listeners: {}, timer: false, init: true }, // timer true to not enqueue first changes
+    __ = { parent: false, clbks: {}, timer: false, init: true }, // timer true to not enqueue first changes
     handlers = Object.assign({ __: __ }, proxyHandlers)
     ;
 
