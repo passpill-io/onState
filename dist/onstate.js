@@ -15,15 +15,15 @@
 	'use strict';
 	const dontPropagate = new Set(['_reState', 'state']);
 
-function isOs( data ){
+function isOs(data) {
   return data && data.__;
 }
 
-function err( msg ){
-  throw new Error( msg );
+function err(msg) {
+  throw new Error(msg);
 }
 
-function warn( msg ){
+function warn(msg) {
   console.warn('onState WARNING: ' + msg);
 }
 
@@ -37,20 +37,20 @@ var methods = {
     }
   },
   emit: function (event) {
-    var args = [this.__].concat( Array.from(arguments) );
-    trigger.apply(this, args);
+    var args = Array.from( arguments );
+    trigger.apply(null, [this.__].concat( args ) );
 
     // Don't propagate some events
     if (dontPropagate.has(event)) return;
 
-    if(this.__.parent){
-      p.emit.apply(this.__.parent, args)
+    if (this.__.parent) {
+      trigger.apply(null, [this.__.parent].concat(args) );
     }
   }
 }
 
-function trigger(__, event){
-  if( !__.listeners[event] ) return;
+function trigger(__, event) {
+  if (!__.listeners[event]) return;
 
   var rest = Array.from(arguments).slice(2);
   __.listeners[event].forEach(clbk => {
@@ -61,13 +61,13 @@ function trigger(__, event){
 function enqueueState(__) {
   if (!__.timer) {
     __.timer = setTimeout(() => {
-      trigger( __, '_reState' );
+      trigger(__, '_reState');
     });
   }
 }
 
 function onReState(node, prevChild, nextChild) {
-  if( prevChild ){
+  if (prevChild) {
     for (var key in node) {
       if (node[key] === prevChild) {
         Reflect.set(node, key, nextChild);
@@ -75,10 +75,10 @@ function onReState(node, prevChild, nextChild) {
       }
     }
   }
-  
+
   var next = createNode(node),
     __ = node.__
-  ;
+    ;
 
   node.emit('state', next);
 
@@ -94,20 +94,20 @@ function onReState(node, prevChild, nextChild) {
 
 var proxyHandlers = {
   set: function (obj, prop, value) {
-    if( !this.__.init && value && value.__ && value.__.parent ){
+    if (!this.__.init && value && value.__ && value.__.parent) {
       err("Can't add an oS node to another oS object.");
     }
 
-    if( value && !value.__ && (value.on || value.emit) ){
+    if (value && !value.__ && (value.on || value.emit)) {
       warn('Adding an object with `on` or `emit` attributes. They will be overriden.');
     }
 
     var isObject = value instanceof Object,
       child = isObject ? onState(value) : value,
       oldValue = obj[prop]
-    ;
+      ;
 
-    if (oldValue && oldValue.__ ) {
+    if (oldValue && oldValue.__) {
       oldValue.__.parent = false;
     }
 
@@ -124,12 +124,12 @@ var proxyHandlers = {
   deleteProperty: function (obj, prop) {
     var oldValue = obj[prop];
 
-    if (oldValue && oldValue.__ ) {
+    if (oldValue && oldValue.__) {
       oldValue.__.parent = false;
     }
 
     Reflect.deleteProperty(obj, prop);
-    enqueueState( this.__ );
+    enqueueState(this.__);
     return true;
   },
   get: function (obj, prop) {
@@ -150,9 +150,9 @@ var proxyHandlers = {
 
 function createNode(data) {
   var base = data.splice ? [] : {},
-    __ = {parent: false, listeners: {}, timer: false, init: true}, // timer true to not enqueue first changes
-    handlers = Object.assign({__:__},proxyHandlers)
-  ;
+    __ = { parent: false, listeners: {}, timer: false, init: true }, // timer true to not enqueue first changes
+    handlers = Object.assign({ __: __ }, proxyHandlers)
+    ;
 
   var os = new Proxy(base, handlers);
 
@@ -164,20 +164,20 @@ function createNode(data) {
   // Now we won't allow setting nodes and start emitting events
   delete __.init;
 
-  os.on('_reState', function( prevChild, nextChild ){
+  os.on('_reState', function (prevChild, nextChild) {
     onReState(os, prevChild, nextChild);
   });
 
   return os;
 }
 
-function onState( data ){
+function onState(data) {
   // if already is a oS we don't need to transform it
   if (isOs(data)) {
     return data;
   }
 
-  return createNode( data );
+  return createNode(data);
 }
 
 

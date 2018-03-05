@@ -1,7 +1,7 @@
 // Conditional definition to work also in the browser
 // tests where onState is global
 if( typeof onState == 'undefined' ){
-	var onState = require('../src/onState3');
+	var onState = require('../src/onState');
 	var assert = require('assert');
 }
 
@@ -227,6 +227,50 @@ describe( "onState tests", function(){
 			assert.equal(thrown, true);
 			done();
 		},10);
+	});
+
+	it("Add more than one listener to a node", function(done){
+		var one, two;
+		os.on('state', function () { one = 1 });
+		os.on('state', function() { two = 2 });
+
+		os.a = 2;
+
+		setTimeout( function(){
+			assert.equal( one, 1 );
+			assert.equal( two, 2 );
+			done();
+		}, 10);
+	});
+
+	it("Custom events should be synchronous and propagated", function(){
+		var order = '';
+
+		os.b.x.on('custom', function (arg1, arg2, arg3, arg4) {
+			assert.equal(arg1, 'arg1');
+			assert.equal(arg2, 'arg2');
+			assert.equal(arg3, 'arg3');
+			assert.equal(arg4, undefined);
+			order += 'A';
+		});
+		os.b.on('custom', function (arg1, arg2, arg3, arg4) {
+			assert.equal(arg1, 'arg1');
+			assert.equal(arg2, 'arg2');
+			assert.equal(arg3, 'arg3');
+			assert.equal(arg4, undefined);
+			order += 'B';
+		});
+		os.on('custom', function (arg1, arg2, arg3, arg4) {
+			assert.equal(arg1, 'arg1');
+			assert.equal(arg2, 'arg2');
+			assert.equal(arg3, 'arg3');
+			assert.equal(arg4, undefined);
+			order += 'C';
+		});
+
+		os.b.x.emit('custom', 'arg1', 'arg2', 'arg3');
+		
+		assert.equal( order, 'ABC' );
 	});
 });
 

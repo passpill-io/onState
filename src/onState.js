@@ -1,160 +1,171 @@
-(function(root){
-
-/*
-  START onState implementation
-*/
-
 const dontPropagate = new Set(['_reState', 'state']);
 
-function isOs( data ){
-  return data && data._delParent;
+function isOs(data) {
+  return data && data.__;
 }
 
-function onState( data ){
+function err(msg) {
+  throw new Error(msg);
+}
 
-  
+function warn(msg) {
+  console.warn('onState WARNING: ' + msg);
+}
 
-  var listeners = {},
-  	parents = [],
-    timer = false
-  ;
+var methods = {
+  on: function (event, clbk) {
+    if (!this.__.listeners[event]) {
+      this.__.listeners[event] = [clbk];
+    }
+    else {
+      this.__.listeners[event].push(clbk);
+    }
+  },
+  emit: function (event) {
+    var args = Array.from( arguments );
+    trigger.apply(null, [this.__].concat( args ) );
 
-  var m = {
-    on: function( event, clbk ){
-      if( !listeners[event] ){
-        listeners[event] = [clbk];
-      }
-      else {
-        listeners[event].push(clbk);
-      }
-    },
-    emit: function( event ){
-      var args = arguments;
+    // Don't propagate some events
+    if (dontPropagate.has(event)) return;
 
-      [event, '*'].forEach( e => {
-      	if( listeners[e] ){
-        	listeners[e].forEach( clbk => {
-          	clbk.apply( null, args );
-          });
-        }
-      });
+    var p = this.__.parent;
+    while( p ){
+      trigger.apply(null, [p].concat(args));
+      p = p.parent;
+    }
+  }
+}
 
-      // Don't propagate reState
-      if( dontPropagate.has(event) ) return;
+function trigger(__, event) {
+  if (!__.listeners[event]) return;
 
-      var method = event === 'update' ? '_enqueue' : 'emit';
-      parents.forEach( p => p[method].apply(p, args) );
-    },
-    _addParent: function( p ){
-      parents.push(p);
-    },
-    _delParent: function( p ){
-      var idx = parents.indexOf(p);
-      if( idx !== -1 ){
-      	parents.splice( idx, 1 );
+  var rest = Array.from(arguments).slice(2);
+  __.listeners[event].forEach(clbk => {
+    clbk.apply(null, rest);
+  });
+}
+
+function enqueueState(__) {
+  if (!__.timer) {
+    __.timer = setTimeout(() => {
+      trigger(__, '_reState');
+    });
+  }
+}
+
+function onReState(node, prevChild, nextChild) {
+  if (prevChild) {
+    for (var key in node) {
+      if (node[key] === prevChild) {
+        Reflect.set(node, key, nextChild);
+        break;
       }
     }
   }
 
-  function createNode( data ){
-    var base = data.splice ? [] : {},
-      timer = true
+  var next = createNode(node),
+    __ = node.__
     ;
 
-    var enqueueState = function( node ){
-      if( !timer ){
-        timer = setTimeout( () => {
-          timer = false;
-          node.emit('state', node );
-          parents.forEach( p => p.emit('_reState', node, createNode(node)) );
-        });
-      }
+  node.emit('state', next);
+
+  // We are flushing the changes, so clear 
+  // the timer if it was enqueued
+  clearTimeout(__.timer);
+  __.timer = false;
+
+  if (__.parent) {
+    trigger(__.parent, '_reState', node, next);
+  }
+}
+
+var proxyHandlers = {
+  set: function (obj, prop, value) {
+    if (!this.__.init && value && value.__ && value.__.parent) {
+      err("Can't add an oS node to another oS object.");
     }
 
-    var oS = new Proxy( base, {
-    	set: function(obj, prop, value){
-      	var isObject = value instanceof Object,
-        	child = isObject ? onState(value) : value,
-        	oldValue = obj[prop]
-        ;
-
-
-        if( oldValue && oldValue._delParent ){
-        	oldValue._delParent(m);
-        }
-
-        if( isObject ){
-        	child._addParent(m);
-        }
-
-        Reflect.set( obj, prop, child );
-        enqueueState(oS);
-        return true;
-      },
-      deleteProperty: function( obj, prop ){
-        var oldValue = obj[prop];
-
-        if( oldValue && oldValue._delParent ){
-        	oldValue._delParent(m);
-        }
-
-        Reflect.deleteProperty(obj, prop);
-        enqueueState(oS);
-        return true;
-      },
-      get: function (obj, prop) {
-        if (m[prop]) {
-          return m[prop];
-        }
-        if(obj[prop] || obj.hasOwnProperty(prop)){
-          return obj[prop];
-        }
-
-        return Reflect.get( obj, prop );
-      }
-    });
-
-    var key;
-    for( key in data ){
-      oS[key] = data[key];
+    if (value && !value.__ && (value.on || value.emit)) {
+      warn('Adding an object with `on` or `emit` attributes. They will be overriden.');
     }
 
-    timer = false;
+    var isObject = value instanceof Object,
+      child = isObject ? onState(value) : value,
+      oldValue = obj[prop]
+      ;
 
-    oS.on('_reState', (prevState, nextState) => {
-       for(var key in oS){
-         if( oS[key] === prevState ){
-           Reflect.set( oS, key, nextState );
-           oS.emit('state', oS );
-           if( parents.length ){
-             var next = createNode( oS );
-             parents.forEach( p => p.emit('_reState', oS, next) );
-           }
-         }
-       }
-    });
+    if (oldValue && oldValue.__) {
+      oldValue.__.parent = false;
+    }
 
-    return oS;
+    if (isObject) {
+      child.__.parent = this.__;
+    }
+
+    Reflect.set(obj, prop, child);
+    if (!this.__.init) {
+      enqueueState(this.__);
+    }
+    return true;
+  },
+  deleteProperty: function (obj, prop) {
+    var oldValue = obj[prop];
+
+    if (oldValue && oldValue.__) {
+      oldValue.__.parent = false;
+    }
+
+    Reflect.deleteProperty(obj, prop);
+    enqueueState(this.__);
+    return true;
+  },
+  get: function (obj, prop) {
+    if (prop === '__') {
+      return this.__;
+    }
+    if (methods[prop]) {
+      return methods[prop];
+    }
+    if (obj[prop] || obj.hasOwnProperty(prop)) {
+      return obj[prop];
+    }
+
+    return Reflect.get(obj, prop);
+  }
+};
+
+
+function createNode(data) {
+  var base = data.splice ? [] : {},
+    __ = { parent: false, listeners: {}, timer: false, init: true }, // timer true to not enqueue first changes
+    handlers = Object.assign({ __: __ }, proxyHandlers)
+    ;
+
+  var os = new Proxy(base, handlers);
+
+  var key;
+  for (key in data) {
+    os[key] = data[key];
   }
 
-  return createNode( data );
+  // Now we won't allow setting nodes and start emitting events
+  delete __.init;
+
+  os.on('_reState', function (prevChild, nextChild) {
+    onReState(os, prevChild, nextChild);
+  });
+
+  return os;
 }
 
+function onState(data) {
+  // if already is a oS we don't need to transform it
+  if (isOs(data)) {
+    return data;
+  }
 
-/*
-  END onState implementation
-*/
-
-// Make it work everywhere
-if (typeof define === 'function' && define.amd) {
-  // AMD. Register as an anonymous module.
-  define(['exports', 'onState'], onState);
-} else if (typeof exports === 'object' && typeof exports.nodeName !== 'string') {
-  // CommonJS
-  module.exports = onState;
-} else {
-  // Browser globals
-  root.onState = onState;
+  return createNode(data);
 }
 
-})(this);
+/* EXPORT - Do not remove or modify this comment */
+module.exports = onState;

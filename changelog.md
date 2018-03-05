@@ -1,5 +1,5 @@
 v0.2.0
-* Moves UMD adpter out of the source code
+* Moves UMD adapter out of the source code
 * Creates build system
 * Adds travis CI
 * Adds coveralls
