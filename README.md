@@ -1,4 +1,4 @@
-# onState [![npm version](https://img.shields.io/npm/v/onstate.svg?label=npm&colorB=blue)](https://www.npmjs.com/package/onstate) [![Build Status](https://secure.travis-ci.org/passpill-io/onState.svg)](https://secure.travis-ci.org/passpill-io/onState) [![Coverage Status](https://coveralls.io/repos/github/passpill-io/onState/badge.svg?branch=master)](https://coveralls.io/github/passpill-io/onState?branch=master)
+# onState [![npm version](https://img.shields.io/npm/v/onstate.svg?label=npm)](https://www.npmjs.com/package/onstate) [![Build Status](https://secure.travis-ci.org/passpill-io/onState.svg)](https://secure.travis-ci.org/passpill-io/onState) [![Coverage Status](https://coveralls.io/repos/github/passpill-io/onState/badge.svg?branch=master)](https://coveralls.io/github/passpill-io/onState?branch=master)
 
 The simpler way of manage the state of your app.
 
@@ -16,7 +16,7 @@ These are the **minimum browser versions** to make onState work:
     <td>49</td>
     <td>18</td>
     <td>12</td>
-    <td>No</td>
+    <td>Won't work</td>
     <td>10</td>
   </tr>
 </table>
