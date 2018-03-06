@@ -347,6 +347,71 @@ describe( "onState tests", function(){
 
 		assert.equal(called, '11');
 	});
+
+	it("Conserve listeners on changes", function(done){
+		var hits = 0,
+			osb = os.b
+		;
+		
+		os.b.on('state', function(b){
+			osb = b;
+			hits++;
+		});
+
+		os.b.x.push('C');
+		setTimeout(() => osb.x.push('D'), 20);
+		setTimeout(() => osb.x.push('E'), 40);
+		setTimeout(() => osb.x.push('F'), 60);
+
+		setTimeout( () => {
+			assert.equal( osb.x.length, 6 );
+			assert.equal( hits, 4 );
+			done();
+		}, 80);
+	});
+
+	it("Changes in detached nodes don't emit events", function(done){
+		var hits = 0,
+			osbx = os.b.x
+		;
+
+		os.b.on('state', function (b) {
+			hits++;
+		});
+
+		osbx.push('C');
+		setTimeout(() => osbx.push('D'), 20);
+		setTimeout(() => osbx.push('E'), 40);
+
+		setTimeout(() => {
+			assert.equal(os.b.x.length, 3);
+			assert.equal(hits, 1);
+			done();
+		}, 80);
+	});
+
+	it("Emit should return the latest non undefined return value from calbacks", function(){
+		var order = '';
+		os.on('check:emit', () => {
+			order += '1';
+			return 1;
+		});
+		os.on('check:emit', () => {
+			order += '2';
+		});
+		os.on('check:emit', () => {
+			order += '3';
+			return 3;
+		});
+		os.on('check:emit', () => {
+			order += '4';
+		});
+
+		var returned = os.emit('check:emit');
+		
+		assert.equal( order, '1234');
+		assert.equal( returned, 3 );
+	});
 });
 
 

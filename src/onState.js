@@ -45,32 +45,47 @@ var methods = {
   },
   emit: function (event) {
     var args = Array.from( arguments );
-    trigger.apply(null, [this.__].concat( args ) );
+    var result = trigger.apply(null, [this.__].concat( args ) );
 
     // Don't propagate some events
-    if (dontPropagate.has(event)) return;
+    if (dontPropagate.has(event)) return result;
 
     var p = this.__.parent;
     while( p ){
       trigger.apply(null, [p].concat(args));
       p = p.parent;
     }
+
+    return result;
   }
 }
 
 function trigger(__, event) {
-  if (!__.clbks[event]) return;
+  if (!__.clbks[event]) {
+    if( event === '_reState' ){
+      warn("Changing a detached node. It won't emit `state` events.");
+    }
+    return;
+  }
 
-  var rest = Array.from(arguments).slice(2);
+  var rest = Array.from(arguments).slice(2),
+    result, returned
+  ;
   __.clbks[event].forEach(clbk => {
-    clbk.apply(null, rest);
+    returned = clbk.apply(null, rest);
+    if( returned !== undefined ){
+      result = returned;
+    }
   });
+  
+  return result;
 }
 
 function enqueueState(__) {
   if (!__.timer) {
     __.timer = setTimeout(() => {
       trigger(__, '_reState');
+      __.timer = false;
     });
   }
 }
@@ -79,6 +94,8 @@ function onReState(node, prevChild, nextChild) {
   if (prevChild) {
     for (var key in node) {
       if (node[key] === prevChild) {
+        // A detached node forget any listener
+        prevChild.__.clbks = {};
         Reflect.set(node, key, nextChild);
         break;
       }
@@ -114,7 +131,7 @@ var proxyHandlers = {
     var isObject = value instanceof Object,
       child = isObject ? onState(value) : value,
       oldValue = obj[prop]
-      ;
+    ;
 
     if (oldValue && oldValue.__) {
       oldValue.__.parent = false;
@@ -169,7 +186,7 @@ function createNode(data) {
   var base = data.splice ? [] : {},
     __ = { parent: false, clbks: {}, timer: false, init: true }, // timer true to not enqueue first changes
     handlers = Object.assign({ __: __ }, proxyHandlers)
-    ;
+  ;
 
   var os = new Proxy(base, handlers);
 
@@ -178,7 +195,16 @@ function createNode(data) {
     os[key] = data[key];
   }
 
-  // Now we won't allow setting nodes and start emitting events
+  if( data && data.__ && data.__.clbks ){
+    for( key in data.__.clbks ){
+      if( key !== '_reState' ){
+        __.clbks[key] = data.__.clbks[key];
+      }
+    }
+  }
+
+  // From now we won't allow adding os nodes 
+  // and start emitting events
   delete __.init;
 
   os.on('_reState', function (prevChild, nextChild) {

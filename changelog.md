@@ -1,3 +1,8 @@
+**v0.4.0**
+* Event listeners are conserved on state changes
+* Changes in detached nodes are not emiting events anymore, a warning is shown in this case.
+* Emit now returns the last non-undefined return value from the callbacks.
+
 **v0.3.0**
 * Custom events handled ok
 * Adds off method
