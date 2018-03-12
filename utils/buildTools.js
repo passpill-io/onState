@@ -23,6 +23,12 @@ module.exports = {
 			fs.mkdirSync(BUILD_PATH);
 
 			var content = this.read( '../src/onState.js' );
+			var activateQueue = this.read('../src/activateQueue.js')
+				.split('/* START */')[1]
+				.split('/* END */')[0]
+			;
+
+			content = content.replace("var activateQueue = require('./activateQueue')(flushTimers);", activateQueue);
 
 			// Remove the export, wrap it in umd
 			var umd = this.toUmd(moduleName, content.split('/* EXPORT')[0]),

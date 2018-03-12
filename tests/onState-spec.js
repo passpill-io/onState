@@ -240,16 +240,18 @@ describe( "onState tests", function(){
 	});
 
 	it("Splice delete exception should be removed after tick", function( done ){
-		os.on('state', function(){
+		var f;
+		os.on('state', f = function(st){
 			var thrown;
+			os.off('state', f);
 			try {
-				os.c.push(os.c[1]);
+				os.c.push(st.c[1]);
 			}
 			catch( err ){
 				thrown = true;
 			}
 
-			assert.equal( os.c.length, 2 );
+			assert.equal( st.c.length, 2 );
 			assert.equal( thrown, true );
 			done();
 		});
@@ -411,6 +413,43 @@ describe( "onState tests", function(){
 		
 		assert.equal( order, '1234');
 		assert.equal( returned, 3 );
+	});
+
+	it("Changes in different levels should only trigger one state event", function(done){
+		var once, twice;
+		os.on("state", () => {
+			if(!once){
+				once = true;
+			}
+			else {
+				twice = true;
+			}
+			assert.notEqual(twice, true);
+			done();
+		});
+
+		os.e = true;
+		os.b.x.push('C');
+	});
+
+	it("Changing the same leave twice only emit one state event with the second value", function(done){
+		var once, twice;
+		os.on("state", st => {
+			if (!once) {
+				once = true;
+			}
+			else {
+				twice = true;
+			}
+			assert.notEqual(twice, true);
+			assert.equal( st.e, 2 );
+			done();
+		});
+
+		os.e = 1;
+		assert.equal(os.e, 1);
+		os.e = 2;
+		assert.equal(os.e, 2);
 	});
 });
 

@@ -1,4 +1,6 @@
-const dontPropagate = new Set(['_reState', 'state']);
+
+
+const dontPropagate = new Set(['_mark', 'state']);
 
 function isOs(data) {
   return data && data.__;
@@ -11,6 +13,35 @@ function err(msg) {
 function warn(msg) {
   console.warn('onState WARNING: ' + msg);
 }
+
+function clone(obj){
+  if( obj.slice ) return obj.slice();
+  var c = {};
+  for(var key in obj ){
+    c[key] = obj[key];
+  }
+  return c;
+}
+
+// ----------
+// State queues
+// ----------
+var queue = [];
+
+function flushTimers() {
+  var t;
+  while( t = queue.shift() ){
+    t();
+  }
+}
+
+var activateQueue = require('./activateQueue')(flushTimers);
+
+var waitFor = function( clbk ){
+  queue.push(clbk);
+  activateQueue();
+  return 1;
+};
 
 var methods = {
   on: function (event, clbk) {
@@ -62,7 +93,7 @@ var methods = {
 
 function trigger(__, event) {
   if (!__.clbks[event]) {
-    if( event === '_reState' ){
+    if( event === '_mark' ){
       warn("Changing a detached node. It won't emit `state` events.");
     }
     return;
@@ -81,41 +112,28 @@ function trigger(__, event) {
   return result;
 }
 
-function enqueueState(__) {
-  if (!__.timer) {
-    __.timer = setTimeout(() => {
-      trigger(__, '_reState');
-      __.timer = false;
+function onMark(node){
+  var parent = node.__.parent;
+  if( parent ){
+    var marked = parent.marked || new Set();
+    marked.add(node);
+    parent.marked = marked;
+
+    trigger(parent, '_mark');
+  }
+  else if( !node.__.timer ){
+    node.__.timer = waitFor( () => {
+      node.__.update = rebuild(node);
     });
   }
 }
 
-function onReState(node, prevChild, nextChild) {
-  if (prevChild) {
-    for (var key in node) {
-      if (node[key] === prevChild) {
-        // A detached node forget any listener
-        prevChild.__.clbks = {};
-        Reflect.set(node, key, nextChild);
-        break;
-      }
-    }
-  }
-
-  var next = createNode(node),
-    __ = node.__
-  ;
-
-  node.emit('state', next);
-
-  // We are flushing the changes, so clear 
-  // the timer if it was enqueued
-  clearTimeout(__.timer);
-  __.timer = false;
-
-  if (__.parent) {
-    trigger(__.parent, '_reState', node, next);
-  }
+function rebuild(node){
+  var rebuilt = createNode(node);
+  delete node.__.splicing;
+  delete node.__.clbks._mark;
+  node.emit('state', rebuilt);
+  return rebuilt;
 }
 
 var proxyHandlers = {
@@ -129,42 +147,41 @@ var proxyHandlers = {
     }
 
     var isObject = value instanceof Object,
-      child = isObject ? onState(value) : value,
-      oldValue = obj[prop]
+      child = isObject ? onState(value) : value
     ;
 
-    if (oldValue && oldValue.__) {
-      oldValue.__.parent = false;
-    }
-
-    if (isObject) {
+    if( isObject ){
       child.__.parent = this.__;
     }
 
-    Reflect.set(obj, prop, child);
-    if (!this.__.init) {
-      enqueueState(this.__);
+    if( this.__.init ){
+      obj[prop] = child;
+    }
+    else {
+      var update = this.__.update;
+      if (!update) {
+        update = this.__.update = clone(obj);
+      }
+      update[prop] = child;
+      trigger( this.__, '_mark' );
     }
     return true;
   },
   deleteProperty: function (obj, prop) {
-    var oldValue = obj[prop];
-
-    if (oldValue && oldValue.__) {
-      oldValue.__.parent = false;
+    var update = this.__.update;
+    if(!update){
+      update = this.__.update = clone(obj);
     }
-
-    Reflect.deleteProperty(obj, prop);
-    enqueueState(this.__);
+    delete update[prop];
+    trigger(this.__, '_mark');
     return true;
   },
   get: function (obj, prop) {
-
-    if (obj.splice && prop === 'splice') {
+    var target = this.__.update || obj;
+    if (target.splice && prop === 'splice') {
       // Intermediate steps of splice needs to add the same
       // node twice to the array, mark it as splicing
       this.__.splicing = true;
-      setTimeout(() => delete this.__.splicing);
     }
     
     if (prop === '__') {
@@ -173,44 +190,59 @@ var proxyHandlers = {
     if (methods[prop]) {
       return methods[prop];
     }
-    if (obj[prop] || obj.hasOwnProperty(prop)) {
-      return obj[prop];
+    if (target[prop] || target.hasOwnProperty(prop)) {
+      return target[prop];
     }
 
-    return Reflect.get(obj, prop);
+    return Reflect.get(target, prop);
   }
 };
 
-
-function createNode(data) {
+function createNode(data, isRebuild) {
   var base = data.splice ? [] : {},
     __ = { parent: false, clbks: {}, timer: false, init: true }, // timer true to not enqueue first changes
     handlers = Object.assign({ __: __ }, proxyHandlers)
   ;
 
-  var os = new Proxy(base, handlers);
-
-  var key;
-  for (key in data) {
-    os[key] = data[key];
-  }
-
-  if( data && data.__ && data.__.clbks ){
-    for( key in data.__.clbks ){
-      if( key !== '_reState' ){
-        __.clbks[key] = data.__.clbks[key];
+  var target = data,
+    marked, data__
+  ;
+  
+  if (data && (data__ = data.__) && data__.clbks ){
+    marked = data__.marked;
+    target = data__.update || data;
+    if (data__.parent) {
+      delete data__.update;
+    }
+    for( key in data__.clbks ){
+      if( key !== '_mark' ){
+        __.clbks[key] = data__.clbks[key];
       }
     }
+  }
+
+  var os = new Proxy(base, handlers),
+    getNextNode, key
+  ;
+  if( marked ){
+    getNextNode = function( node ){
+      return marked.has(node) ? rebuild(node) : node;
+    }
+  }
+  else {
+    getNextNode = function( node ){ return node; }
+  }
+
+  for (key in target) {
+    os[key] = getNextNode( target[key] );
   }
 
   // From now we won't allow adding os nodes 
   // and start emitting events
   delete __.init;
-
-  os.on('_reState', function (prevChild, nextChild) {
-    onReState(os, prevChild, nextChild);
+  os.on('_mark', function(){
+    onMark(os);
   });
-
   return os;
 }
 

@@ -1,3 +1,8 @@
+**v0.5.0**
+* Rebuilds event system.
+* All the path until the change is rebuilt now.
+* State changes happen faster, on tick or on message.
+
 **v0.4.0**
 * Event listeners are conserved on state changes
 * Changes in detached nodes are not emiting events anymore, a warning is shown in this case.
