@@ -1,3 +1,7 @@
+**v0.5.1**
+* Fixes errors when trying to update the root node more than once
+* Root node now keeps emiting state events after multiple updates
+
 **v0.5.0**
 * Rebuilds event system.
 * All the path until the change is rebuilt now.

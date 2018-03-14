@@ -451,6 +451,29 @@ describe( "onState tests", function(){
 		os.e = 2;
 		assert.equal(os.e, 2);
 	});
+
+	it("Root node should keep semi-mutable", function( done ){
+		os.e = 1;
+		setTimeout(() => {
+			assert.equal(os.e, 1);
+			assert.notEqual(os.__.update, undefined);
+			assert.equal(os.__.update.__, undefined);
+			done();
+		});
+	});
+
+	it("Mark event should be kept in the root node", function(done){
+		os.on('state', () => {
+			if( os.e < 2 ){
+				os.e++;
+			}
+			else {
+				assert.equal(os.e, 2);
+				done();
+			}
+		});
+		os.e = 0;
+	})
 });
 
 
