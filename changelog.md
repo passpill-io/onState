@@ -1,3 +1,6 @@
+**v0.6.0**
+* Refactors root node logic to keep child references
+
 **v0.5.1**
 * Fixes errors when trying to update the root node more than once
 * Root node now keeps emiting state events after multiple updates

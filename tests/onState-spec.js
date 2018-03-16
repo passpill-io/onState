@@ -62,7 +62,7 @@ describe( "onState tests", function(){
 
 	it("State events are emitted on changes", function(done){
 		os.on('state', st => {
-			assert.notEqual(st, os);
+			assert.equal(st, os);
 			assert.equal(st.e, 'foo');
 			assert.equal(os.e, 'foo');
 			done();
@@ -73,7 +73,7 @@ describe( "onState tests", function(){
 
 	it("State events are emitted on delete", function (done) {
 		os.on('state', st => {
-			assert.notEqual(st, os);
+			assert.equal(st, os);
 			assert.equal(st.b, undefined);
 			assert.equal(os.b, undefined);
 			done();
@@ -84,7 +84,7 @@ describe( "onState tests", function(){
 
 	it("State events are emitted on delete leave", function(done){
 		os.on('state', st => {
-			assert.notEqual(st, os);
+			assert.equal(st, os);
 			assert.equal(st.b.z, undefined);
 			assert.equal(Object.keys(st.b).length, 2);
 			done();
@@ -177,7 +177,6 @@ describe( "onState tests", function(){
 		os.on('state', st => {
 			// Nodes in the path changed needs to be different
 			// but siblings needs to be the same objects
-			assert.notEqual(st, os);
 
 			assert.notEqual(st.l1a, osl1a);
 			assert.equal(st.l1b, osl1b);
@@ -456,8 +455,7 @@ describe( "onState tests", function(){
 		os.e = 1;
 		setTimeout(() => {
 			assert.equal(os.e, 1);
-			assert.notEqual(os.__.update, undefined);
-			assert.equal(os.__.update.__, undefined);
+			assert.equal(os.__.update, undefined);
 			done();
 		});
 	});
@@ -473,7 +471,28 @@ describe( "onState tests", function(){
 			}
 		});
 		os.e = 0;
-	})
+	});
+
+	it("Root children need to point the root as parent", function( done ){
+		os.on('state', () => {
+			Object.keys(os).forEach( key => {
+				if( os[key] && os[key].__ ){
+					assert.equal(os[key].__.parent, os.__);
+				}
+			});
+			done();
+		});
+		os.c.w = 4;
+	});
+
+	it("Nested updates can be accessible from the root node", function(done){
+		os.on('state', st => {
+			assert.equal(st.c.w, 4);
+			done();
+		});
+
+		os.c.w = 4;
+	});
 });
 
 

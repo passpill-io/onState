@@ -32,20 +32,17 @@ function onMark(node){
   else if( !node.__.timer ){
     node.__.timer = waitFor( () => {
       delete node.__.timer;
-      rebuild(node, true);
+      updateRoot(node);
+      node.emit('state', node);
     });
   }
 }
 
-function rebuild(node, isRoot){
+function rebuild(node){
   var rebuilt = createNode(node);
+
   delete node.__.splicing;
-  if( isRoot ){
-    node.__.update = clone(rebuilt);
-  }
-  else {
-    delete node.__.clbks._mark;
-  }
+  delete node.__.clbks._mark;
   
   node.emit('state', rebuilt);
   return rebuilt;
@@ -58,6 +55,11 @@ function rebuild(node, isRoot){
 
 var proxyHandlers = {
   set: function (obj, prop, value) {
+    if(this.__.rebuild){
+      obj[prop] = value;
+      return true;
+    }
+
     if (!this.__.init && value && value.__ && value.__.parent && !this.__.splicing ) {
       err("Can't add an oS node to another oS object.");
     }
@@ -88,6 +90,11 @@ var proxyHandlers = {
     return true;
   },
   deleteProperty: function (obj, prop) {
+    if (this.__.rebuild) {
+      delete obj[prop];
+      return true;
+    }
+
     var update = this.__.update;
     if(!update){
       update = this.__.update = clone(obj);
@@ -122,6 +129,48 @@ var proxyHandlers = {
 ///////////
 // Node creation
 ///////////
+function createGetNext( __ ){
+  if (!__ || !__.marked) {
+    return function (node) { return node };
+  }
+  
+  return function (node) {
+    if( __.marked.has(node) ){
+      var next = rebuild(node);
+      next.__.parent = __;
+      return next;
+    }
+    return node;
+  }
+}
+
+function updateRoot(root){
+  var __ = root.__,
+    target = __.update || root,
+    getNextNode = createGetNext( __ ),
+    key, next
+  ;
+  
+  __.rebuild = 1;
+  if (__.update) {
+    for (key in root) {
+      delete root[key];
+    }
+    for (key in target) {
+      root[key] = getNextNode(target[key]);
+    }
+    delete __.update;
+  }
+  else {
+    for (key in target) {
+      if (root[key] !== (next = getNextNode(root[key]))){
+        root[key] = next;
+      }
+    }
+  }
+  delete __.rebuild;
+}
+
 function createNode(data, isRebuild) {
   var base = data.splice ? [] : {},
     __ = { parent: false, clbks: {}, timer: false, init: true }, // timer true to not enqueue first changes
@@ -129,15 +178,12 @@ function createNode(data, isRebuild) {
   ;
 
   var target = data,
-    marked, data__
+    data__, key
   ;
   
   if (data && (data__ = data.__) && data__.clbks ){
-    marked = data__.marked;
     target = data__.update || data;
-    if (data__.parent) {
-      delete data__.update;
-    }
+    delete data__.update;
     for( key in data__.clbks ){
       if( key !== '_mark' ){
         __.clbks[key] = data__.clbks[key];
@@ -146,16 +192,8 @@ function createNode(data, isRebuild) {
   }
 
   var os = new Proxy(base, handlers),
-    getNextNode, key
+    getNextNode = createGetNext( data__ )
   ;
-  if( marked ){
-    getNextNode = function( node ){
-      return marked.has(node) ? rebuild(node) : node;
-    }
-  }
-  else {
-    getNextNode = function( node ){ return node; }
-  }
 
   for (key in target) {
     os[key] = getNextNode( target[key] );
