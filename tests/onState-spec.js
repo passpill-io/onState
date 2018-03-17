@@ -508,7 +508,11 @@ describe( "onState tests", function(){
 			count++;
 		}
 		
-		assert.equal(count, 4);
+		os.c.forEach( value => {
+			count++;
+		});
+		
+		assert.equal(count, 8);
 	});
 });
 

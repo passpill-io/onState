@@ -1,3 +1,6 @@
+**v0.7.1**
+* Array methods now work ok on updated nodes
+
 **v0.7.0**
 * Updated nodes are now returning the right keys on enumeration
 

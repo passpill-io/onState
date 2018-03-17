@@ -104,16 +104,21 @@ var proxyHandlers = {
     return true;
   },
   get: function (obj, prop) {
-    var target = this.__.update || obj;
-    if (target.splice && prop === 'splice') {
-      // Intermediate steps of splice needs to add the same
-      // node twice to the array, mark it as splicing
-      this.__.splicing = true;
-    }
-    
     if (prop === '__') {
       return this.__;
     }
+    
+    var target = this.__.update || obj;
+    if (target.splice && Array.prototype[prop]) {
+      if (prop === 'splice') {
+        // Intermediate steps of splice needs to add the same
+        // node twice to the array, mark it as splicing
+        this.__.splicing = true;
+      }
+      if(this.__.update)
+        return Array.prototype[prop].bind(target);
+    }
+    
     if (eventMethods[prop]) {
       return eventMethods[prop];
     }
