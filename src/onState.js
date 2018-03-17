@@ -122,6 +122,12 @@ var proxyHandlers = {
     }
 
     return Reflect.get(target, prop);
+  },
+  ownKeys: function (obj){
+    return Reflect.ownKeys( this.__.update || obj );
+  },
+  getOwnPropertyDescriptor: function( obj, key ){
+    return Object.getOwnPropertyDescriptor( this.__.update || obj, key );
   }
 };
 
@@ -146,23 +152,23 @@ function createGetNext( __ ){
 
 function updateRoot(root){
   var __ = root.__,
-    target = __.update || root,
+    update = __.update,
     getNextNode = createGetNext( __ ),
     key, next
   ;
   
   __.rebuild = 1;
-  if (__.update) {
+  if (update) {
+    delete __.update;
     for (key in root) {
       delete root[key];
     }
-    for (key in target) {
-      root[key] = getNextNode(target[key]);
+    for (key in update) {
+      root[key] = getNextNode(update[key]);
     }
-    delete __.update;
   }
   else {
-    for (key in target) {
+    for (key in root) {
       if (root[key] !== (next = getNextNode(root[key]))){
         root[key] = next;
       }

@@ -1,3 +1,6 @@
+**v0.7.0**
+* Updated nodes are now returning the right keys on enumeration
+
 **v0.6.0**
 * Refactors root node logic to keep child references
 

@@ -493,6 +493,23 @@ describe( "onState tests", function(){
 
 		os.c.w = 4;
 	});
+
+	it("Update object node should update its keys", function(){
+		os.b.other = 'new';
+		var keys = Object.keys(os.b);
+		assert.equal(keys.length, 4);
+	});
+
+	it("Update array node should update its keys", function () {
+		os.c.push(4);
+		
+		var count = 0;
+		for( let i in os.c ){
+			count++;
+		}
+		
+		assert.equal(count, 4);
+	});
 });
 
 
