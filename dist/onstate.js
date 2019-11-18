@@ -1,4 +1,4 @@
-/* onstate v0.7.1 (2018-3-17)
+/* onstate v0.7.2 (2019-11-18)
  * https://github.com/passpill-io/onState
  * By Javier Marquez - javi@arqex.com
  * License: MIT
@@ -28,22 +28,22 @@ function flushTimers() {
 }
 
 
-var activateQueue;
-if (typeof window !== 'undefined') {
-	let o = window.origin;
-	if (!o || o === 'null') o = '*';
+	var activateQueue;
+	if (typeof window !== 'undefined' && window.addEventListener ) {
+		let o = window.origin;
+		if (!o || o === 'null') o = '*';
 
-	window.addEventListener('message', function (e) {
-		e.data === 'now' && flushTimers();
-	});
-	activateQueue = window.postMessage.bind(window, 'now', o);
-}
-else {
-	activateQueue = function () {
-		process.nextTick(flushTimers);
+		window.addEventListener('message', function (e) {
+			e.data === 'now' && flushTimers();
+		});
+		activateQueue = window.postMessage.bind(window, 'now', o);
 	}
-}
-
+	else {
+		activateQueue = function () {
+			process.nextTick(flushTimers);
+		}
+	}
+	
 
 var waitFor = function( clbk ){
   queue.push(clbk);
