@@ -1,3 +1,9 @@
+**v0.7.3**
+* Use setImmediate to update the state at next tick for react-native
+
+**v0.7.2**
+* Make sure not use windows when we are not in a browser environment
+
 **v0.7.1**
 * Array methods now work ok on updated nodes
 
