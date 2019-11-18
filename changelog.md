@@ -1,3 +1,6 @@
+**v0.7.4**
+* Fix bug on nextTick
+
 **v0.7.3**
 * Use setImmediate to update the state at next tick for react-native
 

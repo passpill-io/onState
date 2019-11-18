@@ -1,6 +1,6 @@
 {
   "name": "onstate",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "The eventful state holder",
   "main": "src/onState.js",
   "scripts": {

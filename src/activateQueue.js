@@ -12,7 +12,7 @@ module.exports = function( flushTimers ){
 			}
 		}
 	}
-	if (typeof window !== 'undefined' && window.addEventListener ) {
+	else if (typeof window !== 'undefined' && window.addEventListener ) {
 		let o = window.origin;
 		if (!o || o === 'null') o = '*';
 
