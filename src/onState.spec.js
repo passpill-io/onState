@@ -6,7 +6,7 @@ if( typeof onState == 'undefined' ){
 }
 
 // deactivates console.warn
-console.warn = function(){};
+// console.warn = function(){};
 
 let data = {
 	a: 1,
@@ -36,24 +36,28 @@ describe( "onState", function(){
 			os.a = 'changed';
 			expect(os.a).toBe('changed');
 		});
+
+		it("State is serializable", () => {
+			expect( JSON.toString(data) ).toBe( JSON.toString(os) );
+		})
 	});
 
 	describe('methods existence', () => {
 		it( 'All methods in place', function(){
-			expect( typeof os.emit ).toBe( "function" );
-			expect( typeof os.on ).toBe( "function" );
+			expect( typeof os.emitChange ).toBe( "function" );
+			expect( typeof os.addChangeListener ).toBe( "function" );
 		});
 
 		it( "Intermediate nodes also have methods", function(){
-			expect( typeof os.b.x.emit ).toBe( "function" );
-			expect( typeof os.b.x.on ).toBe( "function" );
+			expect( typeof os.b.x.emitChange ).toBe( "function" );
+			expect( typeof os.b.x.addChangeListener ).toBe( "function" );
 		});
 
 		it( "New nodes also have methods", function(){
 			os.newOne = {};
 
-			expect( typeof os.newOne.emit ).toBe( "function" );
-			expect( typeof os.newOne.on ).toBe( "function" );
+			expect( typeof os.newOne.emitChange ).toBe( "function" );
+			expect( typeof os.newOne.addChangeListener ).toBe( "function" );
 		});
 
 		it( "Original methods are overridden", function(){
@@ -62,15 +66,15 @@ describe( "onState", function(){
 				on: 2
 			};
 
-			expect(typeof os.newOne.emit ).toBe( "function");
-			expect(typeof os.newOne.on ).toBe( "function");
+			expect(typeof os.newOne.emitChange ).toBe( "function");
+			expect(typeof os.newOne.addChangeListener ).toBe( "function");
 		});
 	});
 
 
 	describe('event emmiting', () => {
 		it("State events are emitted on changes", function(done){
-			os.on('state', st => {
+			os.addChangeListener( st => {
 				expect(st).toEqual(os);
 				expect(st.e).toBe('foo');
 				expect(os.e).toBe('foo');
@@ -81,7 +85,7 @@ describe( "onState", function(){
 		});
 
 		it("State events are emitted on delete", function (done) {
-			os.on('state', st => {
+			os.addChangeListener( st => {
 				expect(st).toEqual(os);
 				expect(st.b).toBe(undefined);
 				expect(os.b).toBe(undefined);
@@ -92,7 +96,7 @@ describe( "onState", function(){
 		});
 
 		it("State events are emitted on delete leaf", function(done){
-			os.on('state', st => {
+			os.addChangeListener( st => {
 				expect(st).toEqual(os);
 				expect(st.b.z).toBe(undefined);
 				expect(Object.keys(st.b).length).toBe(2);
@@ -106,7 +110,7 @@ describe( "onState", function(){
 			let order = '';
 
 			function listen( node, stamp ){
-				node.on('state', function(st) {
+				node.addChangeListener( function(st) {
 					order += stamp;
 				});
 			}
@@ -126,8 +130,8 @@ describe( "onState", function(){
 
 		it("Add more than one listener to a node", function(done){
 			let one, two;
-			os.on('state', function () { one = 1 });
-			os.on('state', function() { two = 2 });
+			os.addChangeListener( function () { one = 1 });
+			os.addChangeListener( function() { two = 2 });
 
 			os.a = 2;
 
@@ -138,48 +142,6 @@ describe( "onState", function(){
 			}, 10);
 		});
 
-		it("Custom events should be synchronous and propagated", function(){
-			let order = '';
-
-			os.b.x.on('custom', function (arg1, arg2, arg3, arg4) {
-				expect(arg1).toBe('arg1');
-				expect(arg2).toBe('arg2');
-				expect(arg3).toBe('arg3');
-				expect(arg4).toBe(undefined);
-				order += 'A';
-			});
-			os.b.on('custom', function (arg1, arg2, arg3, arg4) {
-				expect(arg1).toBe('arg1');
-				expect(arg2).toBe('arg2');
-				expect(arg3).toBe('arg3');
-				expect(arg4).toBe(undefined);
-				order += 'B';
-			});
-			os.on('custom', function (arg1, arg2, arg3, arg4) {
-				expect(arg1).toBe('arg1');
-				expect(arg2).toBe('arg2');
-				expect(arg3).toBe('arg3');
-				expect(arg4).toBe(undefined);
-				order += 'C';
-			});
-
-			os.b.x.emit('custom', 'arg1', 'arg2', 'arg3');
-			
-			expect( order ).toBe( 'ABC' );
-		});
-
-		it("Can't add falsy events", function(){
-			os.on(false, function(){
-				console.log('My callback');
-			});
-
-			expect( os.__.clbks[false]).toBe(undefined);
-
-			os.on('hello');
-
-			expect(os.__.clbks["hello"]).toBe(undefined);
-		});
-
 		it("Remove listeners", function(){
 			let called = '',
 				listener = function(){
@@ -187,10 +149,10 @@ describe( "onState", function(){
 				}
 			;
 
-			os.on('call', listener);
-			os.emit('call');
-			os.off('call', listener );
-			os.emit('call');
+			os.addChangeListener(listener);
+			os.emitChange();
+			os.removeChangeListener(listener );
+			os.emitChange();
 
 			expect(called).toBe('1');
 		});
@@ -205,11 +167,11 @@ describe( "onState", function(){
 				}
 			;
 			
-			os.off('call', listener2);
-			os.on('call', listener);
-			os.emit('call');
-			os.off('call', listener2);
-			os.emit('call');
+			os.removeChangeListener(listener2);
+			os.addChangeListener(listener);
+			os.emitChange();
+			os.removeChangeListener(listener2);
+			os.emitChange();
 
 			expect(called).toBe('11');
 		});
@@ -219,7 +181,7 @@ describe( "onState", function(){
 				osbx = os.b.x
 			;
 
-			os.b.on('state', function (b) {
+			os.b.addChangeListener( function (b) {
 				hits++;
 			});
 
@@ -234,9 +196,9 @@ describe( "onState", function(){
 			}, 80);
 		});
 
-		it("Changes in different levels should only trigger one state event", function(done){
+		it("Simultaneous changes in different levels should only trigger one state event", function(done){
 			let once, twice;
-			os.on("state", () => {
+			os.addChangeListener(() => {
 				if(!once){
 					once = true;
 				}
@@ -251,9 +213,9 @@ describe( "onState", function(){
 			os.b.x.push('C');
 		});
 
-		it("Changing the same leave twice only emit one state event with the second value", function(done){
+		it("Changing the same leave twice in a tick only emit one state event with the second value", function(done){
 			let once, twice;
-			os.on("state", st => {
+			os.addChangeListener(st => {
 				if (!once) {
 					once = true;
 				}
@@ -271,27 +233,18 @@ describe( "onState", function(){
 			expect(os.e).toBe(2);
 		});
 
-		it("Emit should return the latest non undefined return value from callbacks", function(){
-			let order = '';
-			os.on('check:emit', () => {
-				order += '1';
-				return 1;
-			});
-			os.on('check:emit', () => {
-				order += '2';
-			});
-			os.on('check:emit', () => {
-				order += '3';
-				return 3;
-			});
-			os.on('check:emit', () => {
-				order += '4';
-			});
+		it("Changing the same node multiple times during time, should emit multiple events in the generated nodes", done => {
+			let listener = jest.fn();
+			os.b.x.addChangeListener( listener);
 
-			let returned = os.emit('check:emit');
-			
-			expect( order).toBe('1234');
-			expect( returned).toBe(3 );
+			os.b.x.push('C');
+			setTimeout( () => {os.b.x.push('D')}, 100 );
+			setTimeout( () => {os.b.x.push('E')}, 200 );
+
+			setTimeout( () => {
+				expect( listener ).toHaveBeenCalledTimes(3);
+				done();
+			},300);
 		});
 	});
 
@@ -301,7 +254,7 @@ describe( "onState", function(){
 			let twice = false;
 			let timer;
 
-			os.on('state', st => {
+			os.addChangeListener( st => {
 				if( !once ){
 					once = true;
 				}
@@ -355,7 +308,7 @@ describe( "onState", function(){
 			let osl1a0l3cb = os.l1a[0].l3c.b;
 			
 
-			os.on('state', st => {
+			os.addChangeListener( st => {
 				// Nodes in the path changed needs to be different
 				// but siblings needs to be the same objects
 
@@ -387,10 +340,10 @@ describe( "onState", function(){
 
 			os.os2 = os2;
 
-			os2.on('state', function(){
+			os2.addChangeListener( function(){
 				once = 'true';
 			});
-			os.on('state', function(){
+			os.addChangeListener( function(){
 				twice = 'true';
 			});
 
@@ -422,9 +375,9 @@ describe( "onState", function(){
 		it("Splice delete exception should be removed after tick", function( done ){
 			let f;
 
-			os.on('state', f = function(st){
+			os.addChangeListener( f = function(st){
 				let thrown;
-				os.off('state', f);
+				os.removeChangeListener(f);
 				try {
 					os.c.push(st.c[1]);
 				}
@@ -432,8 +385,8 @@ describe( "onState", function(){
 					thrown = true;
 				}
 
-				expect( st.c.length).toBe(2 );
-				expect( thrown).toBe(true );
+				expect(st.c.length).toBe(2);
+				expect(thrown).toBe(true );
 				done();
 			});
 
@@ -445,7 +398,7 @@ describe( "onState", function(){
 				osb = os.b
 			;
 			
-			os.b.on('state', function(b){
+			os.b.addChangeListener( function(b){
 				osb = b;
 				hits++;
 			});
@@ -463,7 +416,7 @@ describe( "onState", function(){
 		});
 
 		it("Nested updates can be accessible from the root node", function(done){
-			os.on('state', st => {
+			os.addChangeListener( st => {
 				expect(st.c.w).toBe(4);
 				done();
 			});
@@ -495,7 +448,7 @@ describe( "onState", function(){
 	
 	describe('internals', () => {
 		it("Mark event should be kept in the root node", function(done){
-			os.on('state', () => {
+			os.addChangeListener( () => {
 				if( os.e < 2 ){
 					os.e++;
 				}
@@ -508,7 +461,7 @@ describe( "onState", function(){
 		});
 
 		it("Root children need to point the root as parent", function( done ){
-			os.on('state', () => {
+			os.addChangeListener( () => {
 				Object.keys(os).forEach( key => {
 					if( os[key] && os[key].__ ){
 						expect(os[key].__.parent).toBe(os.__);

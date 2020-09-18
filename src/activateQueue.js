@@ -1,3 +1,10 @@
+/////
+// This is the batching queue for changes.
+// Depending we are on node or the browser
+// we can use different strategies to trigger the event at
+// the next tick
+/////
+
 module.exports = function( flushTimers ){
 	/* START */
 	var activateQueue;
