@@ -1,5 +1,5 @@
 language: node_js
 sudo: false
-node_js: '6.13'
+node_js: '8.17'
 script: npm run test
 after_success: npm run coveralls
