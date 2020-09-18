@@ -1,4 +1,4 @@
-/* onstate v0.7.4 (2019-11-18)
+/* onstate v1.0.0 (2020-9-18)
  * https://github.com/passpill-io/onState
  * By Javier Marquez - javi@arqex.com
  * License: MIT

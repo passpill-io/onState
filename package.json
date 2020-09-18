@@ -1,17 +1,18 @@
 {
   "name": "onstate",
-  "version": "0.7.4",
+  "version": "1.0.0",
   "description": "The eventful state holder",
   "main": "src/onState.js",
   "scripts": {
-    "test": "mocha tests",
-    "coverage": "nyc npm test && nyc report --reporter=text-lcov",
-    "coveralls": "npm run coverage | ./node_modules/coveralls/bin/coveralls.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "coverage": "jest --coverage",
+    "coveralls": "jest --coverage && cat ./tests/coverage/lcov.info | coveralls",
     "build": "node ./utils/build.js"
   },
-  "directories": {
-    "test": "tests"
-  },
+  "files": [
+    "src"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/passpill-io/onState.git"
@@ -28,15 +29,16 @@
   },
   "homepage": "https://github.com/passpill-io/onState",
   "devDependencies": {
-    "coveralls": "^3.0.0",
-    "mocha": "^5.0.1",
-    "nyc": "^11.4.1",
-    "rimraf": "^2.6.2",
+    "coveralls": "^3.1.0",
+    "jest": "^26.4.2",
+    "rimraf": "^3.0.2",
     "uglify-es": "^3.3.9"
   },
   "nyc": {
     "include": [
       "src/onState.js"
     ]
+  },
+  "dependencies": {
   }
 }
