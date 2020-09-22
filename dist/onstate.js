@@ -1,4 +1,4 @@
-/* onstate v1.0.0 (2020-9-18)
+/* onstate v1.0.0 (2020-9-22)
  * https://github.com/passpill-io/onState
  * By Javier Marquez - javi@arqex.com
  * License: MIT
@@ -13,15 +13,13 @@
 	}
 }(this, function () {
 	'use strict';
-	const dontPropagate = new Set(['_mark', 'state']);
-
-// ----------
+	// ----------
 // State queues
 // ----------
 var queue = [];
 
 function flushTimers() {
-  var t;
+  let t;
   while( t = queue.shift() ){
     t();
   }
@@ -62,42 +60,36 @@ var waitFor = function( clbk ){
   return 1;
 };
 
-function onMark(node){
+function addToParentDirtyNodes(node){
   var parent = node.__.parent;
-  if( parent ){
-    var marked = parent.marked || new Set();
-    marked.add(node);
-    parent.marked = marked;
 
-    trigger(parent, '_mark');
+  if( parent ){
+    var dirtyNodes = parent.dirtyNodes || new Set();
+    dirtyNodes.add(node);
+    parent.dirtyNodes = dirtyNodes;
+    parent.setDirty();
   }
   else if( !node.__.timer ){
+    // We have no parents we are the root
+    // enqueue the state update
     node.__.timer = waitFor( () => {
       delete node.__.timer;
       updateRoot(node);
-      node.emit('state', node);
+      node.emitChange(node);
     });
   }
-}
-
-function rebuild(node){
-  var rebuilt = createNode(node);
-
-  delete node.__.splicing;
-  delete node.__.clbks._mark;
-  
-  node.emit('state', rebuilt);
-  return rebuilt;
 }
 
 
 ////////
 // Proxy handlers
 ///////
-
 var proxyHandlers = {
   set: function (obj, prop, value) {
+    
+
     if(this.__.rebuild){
+      
       obj[prop] = value;
       return true;
     }
@@ -119,15 +111,18 @@ var proxyHandlers = {
     }
 
     if( this.__.init ){
+      // 
       obj[prop] = child;
     }
     else {
-      var update = this.__.update;
-      if (!update) {
-        update = this.__.update = clone(obj);
+      
+
+      var nextState = this.__.nextState;
+      if (!nextState) {
+        nextState = this.__.nextState = clone(obj);
       }
-      update[prop] = child;
-      trigger( this.__, '_mark' );
+      nextState[prop] = child;
+      this.__.setDirty();
     }
     return true;
   },
@@ -137,12 +132,12 @@ var proxyHandlers = {
       return true;
     }
 
-    var update = this.__.update;
-    if(!update){
-      update = this.__.update = clone(obj);
+    var nextState = this.__.nextState;
+    if(!nextState){
+      nextState = this.__.nextState = clone(obj);
     }
-    delete update[prop];
-    trigger(this.__, '_mark');
+    delete nextState[prop];
+    this.__.setDirty();
     return true;
   },
   get: function (obj, prop) {
@@ -150,14 +145,15 @@ var proxyHandlers = {
       return this.__;
     }
     
-    var target = this.__.update || obj;
+    let target = this.__.nextState || obj;
     if (target.splice && Array.prototype[prop]) {
       if (prop === 'splice') {
-        // Intermediate steps of splice needs to add the same
-        // node twice to the array, mark it as splicing
+        // Intermediate steps of splice need to add the same
+        // node twice to the array, mark it as splicing to not to
+        // throw errors
         this.__.splicing = true;
       }
-      if(this.__.update)
+      if(this.__.nextState)
         return Array.prototype[prop].bind(target);
     }
     
@@ -171,10 +167,10 @@ var proxyHandlers = {
     return Reflect.get(target, prop);
   },
   ownKeys: function (obj){
-    return Reflect.ownKeys( this.__.update || obj );
+    return Reflect.ownKeys( this.__.nextState || obj );
   },
   getOwnPropertyDescriptor: function( obj, key ){
-    return Object.getOwnPropertyDescriptor( this.__.update || obj, key );
+    return Object.getOwnPropertyDescriptor( this.__.nextState || obj, key );
   }
 };
 
@@ -182,82 +178,93 @@ var proxyHandlers = {
 ///////////
 // Node creation
 ///////////
-function createGetNext( __ ){
-  if (!__ || !__.marked) {
-    return function (node) { return node };
+
+function getNextNode( __, prevNode ){
+  if (!__ || !__.dirtyNodes || !__.dirtyNodes.has(prevNode) ){
+    return prevNode;
   }
-  
-  return function (node) {
-    if( __.marked.has(node) ){
-      var next = rebuild(node);
-      next.__.parent = __;
-      return next;
-    }
-    return node;
+
+  let nextNode = createNode( prevNode );
+
+  delete prevNode.__.splicing;
+  prevNode.__.detached = true;
+  nextNode.__.parent = __;
+
+  return nextNode;
+}
+
+function checkNodeRebuild( __, prevNode ){
+  let nextNode = getNextNode( __, prevNode );
+
+  if( prevNode !== nextNode && nextNode && nextNode.emitChange ){
+    
+    // We have rebuilt the node, trigger a change
+    nextNode.emitChange(nextNode);
   }
+  else {
+    // 
+  }
+
+  return nextNode;
 }
 
 function updateRoot(root){
-  var __ = root.__,
-    update = __.update,
-    getNextNode = createGetNext( __ ),
-    key, next
-  ;
+  root.__.rebuild = 1;
+
   
-  __.rebuild = 1;
-  if (update) {
-    delete __.update;
+
+  if( root.__.nextState ){
+    let nextState = root.__.nextState;
+    delete root.__.nextState;
     for (key in root) {
       delete root[key];
     }
-    for (key in update) {
-      root[key] = getNextNode(update[key]);
+    for (key in nextState) {
+      root[key] = checkNodeRebuild(root.__, nextState[key]);
     }
   }
   else {
     for (key in root) {
-      if (root[key] !== (next = getNextNode(root[key]))){
-        root[key] = next;
-      }
+      root[key] = checkNodeRebuild(root.__, root[key]);
     }
   }
-  delete __.rebuild;
+
+  delete root.__.rebuild;
 }
 
-function createNode(data, isRebuild) {
-  var base = data.splice ? [] : {},
-    __ = { parent: false, clbks: {}, timer: false, init: true }, // timer true to not enqueue first changes
-    handlers = Object.assign({ __: __ }, proxyHandlers)
+function createNode( source ){
+  let wasOS = source && source.__;
+  let __ = {
+    parent: false,
+    clbks: wasOS ? source.__.clbks.slice() : [],
+    timer: false,
+    init: true // init true to not enqueue first changes
+  };
+
+  let handlers = Object.assign( {__: __}, proxyHandlers );
+  let os = new Proxy( source.splice ? [] : {}, handlers );
+
+  let attributes = wasOS && source.__.nextState ?
+    source.__.nextState :
+    source
   ;
 
-  var target = data,
-    data__, key
-  ;
-  
-  if (data && (data__ = data.__) && data__.clbks ){
-    target = data__.update || data;
-    delete data__.update;
-    for( key in data__.clbks ){
-      if( key !== '_mark' ){
-        __.clbks[key] = data__.clbks[key];
-      }
-    }
-  }
-
-  var os = new Proxy(base, handlers),
-    getNextNode = createGetNext( data__ )
-  ;
-
-  for (key in target) {
-    os[key] = getNextNode( target[key] );
+  for( let key in attributes ){
+    os[key] = checkNodeRebuild( source.__, attributes[key] );
   }
 
   // From now we won't allow adding os nodes 
   // and start emitting events
   delete __.init;
-  os.on('_mark', function(){
-    onMark(os);
-  });
+  __.setDirty = function() {
+    if( __.detached ){
+      warn("Changing a detached node. It won't emit `state` events.");
+    }
+    else {
+      addToParentDirtyNodes( os );
+    }
+  };
+
   return os;
 }
 
@@ -274,77 +281,35 @@ function onState(data) {
 ///////////
 // Event handling
 ///////////
+const eventMethods = {
+  addChangeListener: function(clbk) {
+    if (typeof clbk !== 'function') {
+      return warn("The listener is not a function.")
+    }
+    this.__.clbks.push( clbk );
+  },
+  removeChangeListener: function(clbk) {
+    let clbks = this.__.clbks;
+    let idx = clbks.length;
+    let removed = false;
 
-var eventMethods = {
-  on: function (event, clbk) {
-    if (!event) {
-      return warn("Can't add listener for a falsy event.");
-    }
-    else if (typeof clbk !== 'function') {
-      return warn("No listener provided for the event '" + event + "'.")
+    while( idx-- > 0 ){
+      if( clbk === clbks[idx] ){
+        clbks.splice( idx, 1 );
+        removed = true;
+      }
     }
 
-    if (!this.__.clbks[event]) {
-      this.__.clbks[event] = [clbk];
-    }
-    else {
-      this.__.clbks[event].push(clbk);
+    if( !removed ){
+      warn("Couldn't find the listener to remove.");
     }
   },
-  off: function (event, clbk) {
-    var clbks = this.__.clbks[event],
-      msg = "Couldn't find the listener to remove from the event '" + event + "'."
-      ;
-
-    if (!clbks) return warn(msg);
-
-    var idx = clbks.indexOf(clbk);
-    if (idx !== -1) {
-      clbks.splice(idx, 1);
-    }
-    else {
-      warn(msg);
-    }
-  },
-  emit: function (event) {
-    var args = Array.from(arguments);
-    var result = trigger.apply(null, [this.__].concat(args));
-
-    // Don't propagate some events
-    if (dontPropagate.has(event)) return result;
-
-    var p = this.__.parent;
-    while (p) {
-      trigger.apply(null, [p].concat(args));
-      p = p.parent;
-    }
-
-    return result;
+  emitChange: function ( state ) {
+    this.__.clbks.forEach( clbk => {
+      clbk( state );
+    });
   }
 }
-
-function trigger(__, event) {
-  if (!__.clbks[event]) {
-    if (event === '_mark') {
-      warn("Changing a detached node. It won't emit `state` events.");
-    }
-    return;
-  }
-
-  var rest = Array.from(arguments).slice(2),
-    result, returned
-    ;
-
-  __.clbks[event].forEach(clbk => {
-    returned = clbk.apply(null, rest);
-    if (returned !== undefined) {
-      result = returned;
-    }
-  });
-
-  return result;
-}
-
 
 ////////////
 // HELPERS
@@ -363,8 +328,9 @@ function warn(msg) {
 
 function clone(obj) {
   if (obj.slice) return obj.slice();
-  var c = {};
-  for (var key in obj) {
+
+  let c = {};
+  for (let key in obj) {
     c[key] = obj[key];
   }
   return c;
