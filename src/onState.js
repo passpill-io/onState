@@ -44,7 +44,6 @@ function addToParentDirtyNodes( node ) {
 ///////
 var proxyHandlers = {
   set: function (obj, prop, value) {
-    
     if( !this.__.init && !this.__.rebuilding && !isLeaf(value) ){
       assertNoLoops( this.__.getAscendancy( new Set() ), value );
     }
@@ -134,26 +133,28 @@ var proxyHandlers = {
 // Node creation
 ///////////
 
-function getNextNode( __, prevNode ){
-  if (!__ || !__.dirtyNodes || !__.dirtyNodes.has(prevNode) ){
-    return prevNode;
+function getNextNode( __, baseNode ){
+  if( isLeaf(baseNode) ){
+    return baseNode;
+  }
+  if( isOs(baseNode) && (!__ || !__.dirtyNodes || !__.dirtyNodes.has(baseNode)) ){
+    return baseNode;
   }
 
-  // console.log('rebuilding', JSON.stringify(prevNode));
-  let nextNode = rebuiltNodes.get(prevNode);
-
+  let nextNode = rebuiltNodes.get(baseNode);
   if( nextNode ) {
     return nextNode;
   }
 
-  nextNode = createNode( prevNode );
-
-  delete prevNode.__.splicing;
-
-  prevNode.__.parents.delete(__);
+  nextNode = createNode( baseNode );
+  if( baseNode.__ ) {
+    delete baseNode.__.splicing;
+    baseNode.__.parents.delete(__);
+    baseNode.__.detached = true;
+  }
   nextNode.__.parents.add(__);
 
-  rebuiltNodes.set(prevNode, nextNode);
+  rebuiltNodes.set(baseNode, nextNode);
   
   return nextNode;
 }
@@ -164,7 +165,6 @@ function checkNodeRebuild( __, prevNode ){
   if( prevNode !== nextNode && nextNode && nextNode.emitChange ){
     // We have rebuilt the node, trigger a change
     nextNode.emitChange(nextNode);
-    prevNode.__.detached = true;
   }
 
   return nextNode;
@@ -211,13 +211,17 @@ function createNode( source ){
   ;
 
   let source__ = source && source.__;
-  for( let key in attributes ){
+  iterateKeys( attributes, key => {
     let nextNode = checkNodeRebuild( source.__, attributes[key] );
     if( isOs(nextNode) ){
       nextNode.__.parents.add(__);
-      nextNode.__.parents.remove(source__);
+      nextNode.__.parents.delete(source__);
     }
     os[key] = nextNode;
+  });
+
+  if( isOs(source) ){
+    delete source.__.nextState;
   }
 
   // From now we won't allow adding os nodes 
@@ -254,10 +258,10 @@ function assertNoLoops( parents, node ){
   if( parents.has(node) ){
     err('Trying to add a node that is already added. Loops are not allowed in onState');
   }
-
-  for( let key in node ){
+  
+  iterateKeys( node, function(key) {
     assertNoLoops( parents, node[key]);
-  }
+  });
 }
 
 function onState(data) {
@@ -331,6 +335,15 @@ function clone(obj) {
     c[key] = obj[key];
   }
   return c;
+}
+
+function iterateKeys( obj, clbk ){
+  if(obj.splice){
+    obj.forEach( (it, key) => clbk(key) );
+  }
+  for( let key in obj ){
+    clbk(key);
+  }
 }
 
 /* EXPORT - Do not remove or modify this comment */
