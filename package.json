@@ -39,6 +39,5 @@
       "src/onState.js"
     ]
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }
