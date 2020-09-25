@@ -38,31 +38,18 @@ function enhanceNode( data ){
   else if( !isOs( data ) ){
     return createOsNode( data );
   }
-  else if( data.__.nextState ){
-    return settleNextState( data.__.nextState );
-  }
   return data;
 }
 
 function createOsNode( data ){
-  let __ = {
-    parents: new Set(),
-    clbks: isOs(data) ? data.__.clbks.slice() : [],
-    timer: false,
-    init: true // init true to not enqueue first changes
-  };
-  let handlers = Object.assign( {__: __}, proxyHandlers );
-  let os = new Proxy( data.splice ? [] : {}, handlers );
+  let os = getEmptyOs( data );
+  let __ = os.__;
 
-  let data__ = data && data.__;
   iterateKeys( data, function( key ){
-    let nextNode = enhanceNode( data[key] );
-    if( nextNode !== data[key] ){
-      nextNode.__.parents.add(__);
-      data__ && nextNode.__.parents.delete(data__);
-      nextNode.emitChange(nextNode);
+    os[key] = enhanceNode( data[key] );
+    if( isOs(os[key]) ){
+      os[key].__.parents.add(__);
     }
-    os[key] = nextNode;
   });
 
   // From now we won't allow adding os nodes 
@@ -94,6 +81,17 @@ function createOsNode( data ){
   return os;
 }
 
+function getEmptyOs( data ){
+  let __ = {
+    parents: new Set(),
+    clbks: isOs(data) ? data.__.clbks.slice() : [],
+    timer: false,
+    init: true // init true to not enqueue first changes
+  };
+  let handlers = Object.assign( {__: __}, proxyHandlers );
+  return new Proxy( data.splice ? [] : {}, handlers );
+}
+
 function addToParentDirtyNodes( node ){
   if( isRoot(node) ){
     enqueueRootChange(node);
@@ -116,7 +114,11 @@ function enqueueRootChange( node ){
 }
 
 function updateRoot(root){
+  rebuiltNodes = new WeakMap();
+
   root.__.rebuilding = 1;
+
+  
 
   let nextState = root.__.nextState;
   delete root.__.nextState;
@@ -126,27 +128,23 @@ function updateRoot(root){
     }
   }
   for (let key in nextState) {
-    let nextNode = enhanceNode( nextState[key] );
-    if( nextNode !== root[key] && isOs(nextNode) ){
-      nextNode.__.parents.add(root.__);
-      nextNode.__.parents.delete(root.__);
-      if( isOs(root[key]) ){
-        nextNode.__.clbks = root[key].__.clbks.slice();
-      }
-      nextNode.emitChange(nextNode);
+    let nextNode = nextState[key];
+    if( isDirty(nextNode) ){
+      nextNode = settleNextState( root, root[key], nextNode );
     }
-    root[key] = nextNode;
+    if( nextNode !== root[key] ){
+      root[key] = nextNode;
+    }
   }
   
   delete root.__.rebuilding;
-  rebuiltNodes = new WeakMap();
 }
 
+// parent has a node with a nextState
 function refreshNode( parent, node ){
   let nextNode = rebuiltNodes.get( node );
   if( !nextNode ) {
-    nextNode = createOsNode( clone(node) );
-    rebuiltNodes.set( node, nextNode );
+    nextNode = createOsNode( node );
   }
 
   let nextState;
@@ -154,9 +152,8 @@ function refreshNode( parent, node ){
     nextState = parent.__.nextState;
     iterateKeys( nextState, function( key ){
       // When there was a nextState we only update the target nodes
-      if( nextState[key] === node ){
+      if( nextState[key] === node ) {
         nextState[key] = nextNode;
-        nextNode.__.clbks = node.__clbks.slice();
       }
     });
   }
@@ -165,11 +162,33 @@ function refreshNode( parent, node ){
     iterateKeys( parent, function( key ){
       // When there wasn't a nextState, we create it by
       // cloning the parent but changing the target node
-      nextState[key] = parent[key] === node ? nextNode : parent[key];
+      if( nextState[key] === node ){
+        nextState[key] = nextNode;
+      }
+      else {
+        nextState[key] = parent[key];
+      }
     });
+    parent.__.nextState = nextState;
   }
   
-  parent.__.nextState = nextState;
+  rebuiltNodes.set( node, nextNode );
+}
+
+function transferProps( parent, prevNode, nextNode ){
+  
+
+  let transferClbks = false;
+  if( isOs(prevNode) ){
+    prevNode.__.parents.delete( parent.__ );
+    transferClbks = true;
+  }
+  if( isOs(nextNode) ){
+    nextNode.__.parents.add( parent.__ );
+    if( transferClbks ) {
+      nextNode.__.clbks = prevNode.__.clbks.slice();
+    }
+  }
 }
 
 function assertNoLoops( parents, node ){
@@ -187,16 +206,34 @@ function assertNoLoops( parents, node ){
   });
 }
 
-function settleNextState( prevNode ){
-  let nextNode = rebuiltNodes.get( prevNode );
-  if( nextNode ) return nextNode;
-
+function settleNextState( parent, prevNode, nextNode ){
+  let rebuilt = rebuiltNodes.get( prevNode );
+  if( rebuilt ){
+    return rebuilt;
+  }
+  
   // We are removing the nextState from the node
   let nextState = prevNode.__.nextState;
   delete prevNode.__.nextState;
-  nextNode = createOsNode( nextState );
-  rebuiltNodes.set( prevNode, nextNode);
-  return nextNode;
+
+  let os = getEmptyOs( nextNode );
+
+  iterateKeys( nextState, function( key ){
+    if( isDirty(nextState[key]) ){
+      os[key] = settleNextState( nextState, prevNode[key], nextState[key] );
+    }
+    else {
+      os[key] = nextState[key];
+    }
+  });
+
+  os.__.init = false;
+
+  transferProps( parent, prevNode, nextNode );
+  rebuiltNodes.set( prevNode, nextNode );
+  nextNode.emitChange( nextNode );
+
+  return os;
 }
 
 ////////
@@ -289,7 +326,7 @@ var proxyHandlers = {
 const nodeMethods = {
   addChangeListener: function(clbk) {
     if (typeof clbk !== 'function') {
-      return warn("The listener is not a function.")
+      return onState.warn("The listener is not a function.")
     }
     this.__.clbks.push( clbk );
   },
@@ -306,7 +343,7 @@ const nodeMethods = {
     }
 
     if( !removed ){
-      warn("Couldn't find the listener to remove.");
+      onState.warn("Couldn't find the listener to remove.");
     }
   },
   emitChange: function ( state ) {
@@ -333,6 +370,10 @@ function isLeaf(data){
 
 function isRoot(data){
   return data && data.__ && data.__.rootName;
+}
+
+function isDirty(data){
+  return isOs(data) && data.__.nextState;
 }
 
 function clone( node ){
